@@ -4,6 +4,7 @@
 bool status = 0;
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
 	switch (message) {
+	case SC_MINIMIZE: return 0;
 	case WM_USER:
 		if (lParam == WM_LBUTTONDBLCLK && status == 1) {
 			ShowWindow(GetConsoleWindow(), SW_SHOW);
@@ -16,9 +17,6 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
 			break;
 		}
 		break;
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		break;
 	default:
 		return DefWindowProc(window, message, wParam, lParam);
 	}
@@ -27,6 +25,7 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
 bool statusCheck() {
 	return status;
 }
+
 
 int APIENTRY Tray() {
 	HINSTANCE instance{};
@@ -49,7 +48,7 @@ int APIENTRY Tray() {
 	strcpy(icon.szTip, "ProcessKiller");
 	Shell_NotifyIcon(NIM_ADD, &icon);
 	MSG message;
-	while (GetMessage(&message, NULL, 0, 0)){
+	while (GetMessage(&message,NULL, 0, 0)) {
 		TranslateMessage(&message);
 		DispatchMessage(&message);
 	}

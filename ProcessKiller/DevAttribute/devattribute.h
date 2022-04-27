@@ -37,7 +37,6 @@ bool showConsoleCursor(bool bShow);
 void setConsoleSize(int columnsX, int linesY);
 int getConsoleSize(std::string position);
 void setConsoleFullscreen();
-HWND getConsoleHwnd();
 COORD getConsoleCursorPosition();
 void mButtonGenerate(int rangeXmin, int rangeXmax, int rangeYmin, int rangeYmax, int button=VK_LBUTTON);
 class strtools

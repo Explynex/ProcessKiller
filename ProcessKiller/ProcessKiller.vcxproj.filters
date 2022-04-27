@@ -44,7 +44,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="processlist.md" />
-    <None Include="propertions.ini" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="favicon.ico">

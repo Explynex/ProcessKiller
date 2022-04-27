@@ -2,20 +2,71 @@
 #include <iostream>
 #include <fstream>
 #include <Tlhelp32.h>
-#define STATUSCOUNT 4
+#define STATUSCOUNT 5
 struct processlist {
 	std::vector <std::string> list;
 	int counter=0;
 };
-std::string Status[4] = { "OFF","OFF","OFF","OFF" };
+std::string Status[STATUSCOUNT] = { "OFF","4.0","OFF","OFF","ON"};
 std::string systemService[10] = { "dllhost.exe","ServiceHub.","conhost.exe","svchhost.exe","ekrn.exe","System.exe","NVDisplay.Container.exe","Taskmgr.exe","explorer.exe","crss.exe"};
 std::thread* core = nullptr;
 bool ExitFlag = false, showLog = false,mainSize = false;
-int timeCheck = 4;
+int timeCheck = 4000;
 
 void threadCore(std::string str = "");
 void winPause() {
 	system("pause > nul");
+}
+
+BOOL regIsBoot(const char* subkey) {
+	HKEY key;
+	BOOL status = FALSE;
+	DWORD dwTemp;
+	TCHAR path[MAX_PATH] = { 0 };
+	static TCHAR regPath[] = TEXT("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run");
+	if ((RegOpenKeyEx(HKEY_CURRENT_USER, regPath, 0, KEY_READ, &key)) != ERROR_SUCCESS) {}
+	else {
+		dwTemp = sizeof(path);
+		if ((RegGetValue(key, NULL, subkey, RRF_RT_REG_SZ, 0, path, &dwTemp)) != ERROR_SUCCESS) {}
+		else {
+			status = TRUE;
+		}
+		RegCloseKey(key);
+	}
+	return status;
+}
+
+void regAdd() {
+	HKEY key;
+	RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &key);
+	TCHAR path[MAX_PATH];
+	GetModuleFileName(NULL, path, MAX_PATH);
+	if ((RegSetValueEx(key, "ProcessKiller", 0, REG_SZ, (LPBYTE)path, (strlen(path) + 1) * sizeof(wchar_t))) != ERROR_SUCCESS)
+		RegCloseKey(key);
+}
+
+void regDel() {
+	HKEY key;
+	RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &key);
+	RegDeleteValue(key, "ProcessKiller");
+	RegCloseKey(key);
+}
+
+void consoleResize(BOOL status) {
+	HWND hwnd = GetConsoleWindow();
+	HMENU hm{};
+	hm = GetSystemMenu(hwnd, status);
+	RemoveMenu(hm, SC_SIZE, MF_BYCOMMAND | MF_REMOVE);
+	RemoveMenu(hm, SC_MAXIMIZE, MF_BYCOMMAND | MF_REMOVE);
+	DrawMenuBar(hwnd);
+	GetMenu(hwnd);
+}
+
+void menuNavigateHelper(wchar_t& key) {
+	if (key == L'ц' || key == L'Ц' || key == 'W')
+		key = 'w';
+	if (key == L'Ы' || key == L'ы' || key == L'і' || key == L'І' || key == 'S')
+		key = 's';
 }
 
 bool remove_line(std::string filename, size_t index){
@@ -99,6 +150,7 @@ void generateMenuUpDown(int x, int y, int stringcount, int pointer, std::string 
 }
 
 void showProcessList() {
+	consoleResize(TRUE);
 	setConsoleSize(76, 250);
 	COORD cursPos;
 	std::string name, command;
@@ -170,6 +222,7 @@ void showProcessList() {
 
 void showBlockedList() {
 	system("cls");
+	consoleResize(TRUE);
 	setConsoleSize(49, 20);
 	std::ifstream fin;
 	COORD cord;
@@ -189,6 +242,7 @@ void showBlockedList() {
 		setColor(LIGHTRED, BLACK);
 		std::cout << "\n\n  Empty... ";
 		winPause();
+		mainSize = 0;
 		return;
 	}
 	setColor(LIGHTGRAY, BLACK);
@@ -235,12 +289,12 @@ void processKillerCore() {
 				}
 			}
 		}
-		std::this_thread::sleep_for(std::chrono::seconds(timeCheck));
+		std::this_thread::sleep_for(std::chrono::milliseconds(timeCheck));
 	}
 }
 
 void statusOptionChecker(std::string str  = "") {
-	std::string Menu[STATUSCOUNT] = { "ProcessKiller core: ", "Quick process check: ","Kill system services: ","Minimize to tray: "};
+	std::string Menu[STATUSCOUNT] = { "ProcessKiller core: ", "Process check interval: ","Kill system services: ","Minimize to tray: ","Auto startup: "};
 	std::ofstream fout;
 	std::ifstream fin;
 	std::string temp;
@@ -256,8 +310,9 @@ void statusOptionChecker(std::string str  = "") {
 	else {
 		for (int i = 0, j = 0; i == STATUSCOUNT, fin >> temp; j++) {
 			if (j > 4 && i == 0) goto s;
-			if (temp == "ON" || temp == "OFF") {
+			if (temp == "ON" || temp == "OFF" || j == 6) {
 				Status[i] = temp;
+				if (j == 6) timeCheck = std::stof(Status[1]) * 1000;
 				i++;
 			}
 		}
@@ -265,9 +320,11 @@ void statusOptionChecker(std::string str  = "") {
 	}
 }
 
+
 void showOptions() {
-	std::string Menu[5] = { " Process Killer core ", " Quick process check "," Kill system services "," Minimize to tray "," Back   "};
+	std::string Menu[6] = { " Process Killer core ", " Process check interval "," Kill system services "," Minimize to tray "," Auto startup "," Back   "};
 	int pointer = 0;
+	wchar_t key{};
 	system("cls");
 	while (true)
 	{
@@ -287,7 +344,7 @@ void showOptions() {
 		}
 		setColor(LIGHTGRAY, BLACK);
 		GotoXY(2, 6, "╭━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━╮\n");
-		for (int i = 0; i < 5; ++i) {
+		for (int i = 0; i < 6; ++i) {
 			if (i == pointer) {
 				GotoXY(2, i + 6 + 1, "┃");
 				GotoXY(2+26, i + 6 + 1, "┃");
@@ -304,25 +361,25 @@ void showOptions() {
 				GotoXY(2 + 26, i + 6 + 1, "┃");
 			}
 			setColor(LIGHTGRAY, BLACK);
-			GotoXY(2, 5 + 6 + 1, "╰━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━╯\n");
+			GotoXY(2, 5 + 7 + 1, "╰━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━╯\n");
 		}
 		while (true && statusCheck() == 0)
 		{
-
-			Sleep(100);
-			if (GetKeyState(0x57) < 0 || GetKeyState(VK_UP) < 0) {
+			key = _getwch();
+			menuNavigateHelper(key);
+			if (key == 'w') {
 				pointer -= 1;
 				if (pointer == -1)
 					pointer = STATUSCOUNT;
 				break;
 			}
-			if (GetKeyState(0x53) < 0 || GetKeyState(VK_DOWN) < 0) {
+			if (key == 's') {
 				pointer += 1;
 				if (pointer == STATUSCOUNT+1)
 					pointer = 0;
 				break;
 			}
-			else if (GetKeyState(VK_RETURN) < 0) {
+			else if (key == VK_RETURN) {
 				switch (pointer) {
 				std::cin.ignore(32767, '\n');
 				case 0:
@@ -337,17 +394,43 @@ void showOptions() {
 					}
 					statusOptionChecker("save");
 					goto m;
-				case 1:
-					if (Status[1] == "OFF") {
-						Status[1] = "ON";
-						timeCheck = 1;
+				case 1: {
+					float i = std::stof(Status[1]);
+					setColor(YELLOW, BLACK);
+					for (;;) {
+						wchar_t wkey = _getwch();
+						std::string buff;
+						if (wkey == VK_RETURN || wkey == VK_ESCAPE) {
+							buff = std::to_string(i);
+							if (i >= 0.1 && i <= 9.9) buff.erase(buff.length() - 5, 5);
+							else buff.erase(buff.length() - 7, 7);
+							Status[1] = buff;
+							break;
+						}
+						if (wkey == 'a' || wkey == 'A' || wkey == L'ф' || wkey == L'Ф') {
+							if (i >= 0.1 && i <= 10)
+								i -= 0.10;
+							else if (i >= 10 && i <= 999)
+								i -= 1;
+						}
+						if (wkey == 'd' || wkey == 'D' || wkey == L'в' || wkey == L'В') {
+							if (i < 10)
+								i += 0.10;
+							else if (i >=10 && i < 999)
+								i += 1;
+						}
+							GotoXY(30, 1 + 7,"   ");
+							GotoXY(30, 1 + 7);
+							if(i < 10)
+								printf("%.1f", i);
+							else 
+								printf("%.0f", i);
+						
 					}
-					else {
-						Status[1] = "OFF";
-						timeCheck = 4;
-					}
+					timeCheck = std::stof(Status[1])*1000;
 					statusOptionChecker("save");
 					goto m;
+				}
 				case 2:
 					if (Status[2] == "OFF") {
 						Status[2] = "ON";
@@ -362,13 +445,21 @@ void showOptions() {
 					else Status[3] = "OFF";
 					statusOptionChecker("save");
 					goto m;
-				case 4: return;
+				case 4:
+					if (Status[4] == "OFF") {
+						regAdd();
+						Status[4] = "ON";
+					}
+					else {
+						regDel();
+						Status[4] = "OFF";
+					}
+					statusOptionChecker("save");
+					goto m;
+				case 5: return;
 				}
 			}
-			else if (GetKeyState(VK_ESCAPE) < 0) {
-				Sleep(150);
-				return;
-			}
+			else if (key == VK_ESCAPE) return;
 		}
 	m:;
 	}
@@ -376,6 +467,7 @@ void showOptions() {
 
 void printRuntimeLog(){
 	system("cls");
+	consoleResize(TRUE);
 	setConsoleSize(76, 1000);
 	std::cout << "\t\t  ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮" << std::endl;
 	std::cout << "\t\t  ┃  Process Killer kernel runtime log  ┃" << std::endl;
@@ -393,11 +485,14 @@ void printRuntimeLog(){
 
 void mainMenu() {
 	std::string Menu[5] = { " Show process list   \n", " Show blocked processes   \n"," Show kernel log     "," Options   "," Exit   "};
+	wchar_t key{};
 	int pointer = 0;
 	while (true)
 	{
 		if (mainSize == 0) {
-			setConsoleSize(40, 14);
+			setConsoleSize(40, 15);
+			showConsoleCursor(false);
+			consoleResize(FALSE);
 			mainSize = 1;
 		}
 		if (statusCheck() != 0) winPause();
@@ -412,51 +507,45 @@ void mainMenu() {
 		generateMenuUpDown(2, 6, 5, pointer, Menu);
 		while (true && statusCheck()==0)
 		{
-			Sleep(100);
-			if (GetKeyState(0x57) < 0 || GetKeyState(VK_UP) < 0) {
+			key = _getwch();
+			menuNavigateHelper(key);
+			if (key == 'w') {
 				pointer -= 1;
 				if (pointer == -1)
 					pointer = 4;
 				break;
 			}
-			if (GetKeyState(0x53) < 0 || GetKeyState(VK_DOWN) < 0) {
+			if (key == 's') {
 				pointer += 1;
 				if (pointer == 5)
 					pointer = 0;
 				break;
 			}
-			else if (GetKeyState(VK_RETURN) < 0) {
+			else if (key == VK_RETURN) {
 				switch (pointer) {
 				case 0:
-					std::cin.ignore(32767, '\n');
+					showConsoleCursor(true);
 					showProcessList();
 					system("cls");
 					goto m;
 				case 1:
-					std::cin.ignore(32767, '\n');
+					showConsoleCursor(true);
 					showBlockedList();
 					system("cls");
 					goto m;
 				case 2:
-					std::cin.ignore(32767, '\n');
 					printRuntimeLog();
 					system("cls");
 					goto m;
 				case 3:
-					std::cin.ignore(32767, '\n');
 					showOptions();
 					system("cls");
 					goto m;
 				case 4:
 					return;
-
 				}
 			}
-			else if (GetKeyState(VK_ESCAPE) < 0) {
-				Sleep(50);
-				return;
-			}
-			
+			else if (key == VK_ESCAPE) return;
 		}
 	m:;
 	}
@@ -471,18 +560,24 @@ void threadCore(std::string str) {
 	}
 }
 
+
+
 int main() {
 	utf.setUtfLocale();
-	statusOptionChecker();
-	if (Status[1] == "ON")
-		timeCheck = 1;
+	statusOptionChecker(); // write user options from a file
+	if (regIsBoot("ProcessKiller") == 0) { //check startup status
+		Status[4] = "OFF";
+	} 
+	else Status[4] = "ON";
 	threadCore();
 	if (Status[3] == "ON")
 		ShowWindow(GetConsoleWindow(), SW_HIDE);
 	std::thread tray(Tray);
 	SetConsoleTitleA("Process Killer");
 	mainMenu();
-	core->detach();
+	if (Status[0] == "ON"){
+		core->detach();
+	}
 	tray.detach();
 	return 0;
 }
